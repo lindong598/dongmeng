@@ -6,6 +6,7 @@ export interface DreamScene {
   id: string;
   title: string;
   description?: string;
+  imageUrl?: string;
 }
 
 export interface Dream {
@@ -14,6 +15,7 @@ export interface Dream {
   emoji: string;
   description: string;
   scenes: DreamScene[];
+  tags: string[];
   status: "draft" | "completed";
   createdAt: string;
   updatedAt: string;
@@ -22,14 +24,18 @@ export interface Dream {
 interface DreamState {
   dreams: Dream[];
   // CRUD
-  addDream: () => string; // returns new dream id
+  addDream: () => string;
   updateDream: (id: string, updates: Partial<Pick<Dream, "title" | "emoji" | "description" | "status">>) => void;
   deleteDream: (id: string) => void;
   getDream: (id: string) => Dream | undefined;
   // Scene management
   addScene: (dreamId: string, title?: string) => void;
-  updateScene: (dreamId: string, sceneId: string, updates: Partial<Pick<DreamScene, "title" | "description">>) => void;
+  updateScene: (dreamId: string, sceneId: string, updates: Partial<Pick<DreamScene, "title" | "description" | "imageUrl">>) => void;
   deleteScene: (dreamId: string, sceneId: string) => void;
+  // Tag management
+  addTag: (dreamId: string, tag: string) => void;
+  removeTag: (dreamId: string, tag: string) => void;
+  getAllTags: () => string[];
 }
 
 // ---- Emoji pool ----
@@ -60,6 +66,7 @@ const seedDreams: Dream[] = [
       { id: "s2", title: "水晶灯塔" },
       { id: "s3", title: "深海漩涡" },
     ],
+    tags: ["海洋", "星空", "奇幻"],
     status: "draft",
     createdAt: "2026-03-15",
     updatedAt: "2026-03-15",
@@ -77,6 +84,7 @@ const seedDreams: Dream[] = [
       { id: "s7", title: "星空降落" },
       { id: "s8", title: "梦醒时分" },
     ],
+    tags: ["飞行", "动物", "冒险"],
     status: "draft",
     createdAt: "2026-03-14",
     updatedAt: "2026-03-14",
@@ -91,6 +99,7 @@ const seedDreams: Dream[] = [
       { id: "s9", title: "水晶入口" },
       { id: "s10", title: "月光溪流" },
     ],
+    tags: ["森林", "奇幻", "自然"],
     status: "draft",
     createdAt: "2026-03-12",
     updatedAt: "2026-03-12",
@@ -107,6 +116,7 @@ const seedDreams: Dream[] = [
       { id: "s13", title: "镜像房间" },
       { id: "s14", title: "无钥之门" },
     ],
+    tags: ["时间", "迷宫", "悬疑"],
     status: "draft",
     createdAt: "2026-03-10",
     updatedAt: "2026-03-10",
@@ -122,6 +132,7 @@ const seedDreams: Dream[] = [
       { id: "s16", title: "歌唱花朵" },
       { id: "s17", title: "文字蝴蝶" },
     ],
+    tags: ["月光", "花园", "音乐"],
     status: "draft",
     createdAt: "2026-03-08",
     updatedAt: "2026-03-08",
@@ -141,6 +152,7 @@ export const useDreamStore = create<DreamState>()(
           emoji: randomEmoji(),
           description: "",
           scenes: [],
+          tags: [],
           status: "draft",
           createdAt: now(),
           updatedAt: now(),
@@ -206,6 +218,30 @@ export const useDreamStore = create<DreamState>()(
               : d
           ),
         })),
+
+      addTag: (dreamId, tag) =>
+        set((s) => ({
+          dreams: s.dreams.map((d) =>
+            d.id === dreamId && !d.tags.includes(tag)
+              ? { ...d, updatedAt: now(), tags: [...d.tags, tag] }
+              : d
+          ),
+        })),
+
+      removeTag: (dreamId, tag) =>
+        set((s) => ({
+          dreams: s.dreams.map((d) =>
+            d.id === dreamId
+              ? { ...d, updatedAt: now(), tags: d.tags.filter((t) => t !== tag) }
+              : d
+          ),
+        })),
+
+      getAllTags: () => {
+        const tags = new Set<string>();
+        get().dreams.forEach((d) => d.tags.forEach((t) => tags.add(t)));
+        return Array.from(tags).sort();
+      },
     }),
     {
       name: "dongmeng-dreams",

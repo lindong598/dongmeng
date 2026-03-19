@@ -19,6 +19,9 @@ import {
   Pencil,
   Save,
   CloudMoon,
+  Download,
+  Tag,
+  Plus,
 } from "lucide-react";
 
 // Debounced auto-save hook
@@ -51,14 +54,19 @@ export function DreamEditorPage() {
   const addScene = useDreamStore((s) => s.addScene);
   const updateScene = useDreamStore((s) => s.updateScene);
   const deleteScene = useDreamStore((s) => s.deleteScene);
+  const addTag = useDreamStore((s) => s.addTag);
+  const removeTag = useDreamStore((s) => s.removeTag);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [editingSceneId, setEditingSceneId] = useState<string | null>(null);
   const [editingSceneTitle, setEditingSceneTitle] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [newTag, setNewTag] = useState("");
+  const [showTagInput, setShowTagInput] = useState(false);
+  const [exportMsg, setExportMsg] = useState("");
 
-  // Sync local state when dream changes (e.g. on first load)
+  // Sync local state when dream changes
   useEffect(() => {
     if (dream) {
       setTitle(dream.title);
@@ -79,7 +87,6 @@ export function DreamEditorPage() {
     navigate("/");
   }, [dreamId, confirmDelete, deleteDream, navigate]);
 
-  // Cancel delete confirmation after 3 seconds
   useEffect(() => {
     if (!confirmDelete) return;
     const t = setTimeout(() => setConfirmDelete(false), 3000);
@@ -107,7 +114,53 @@ export function DreamEditorPage() {
     deleteScene(dreamId, sceneId);
   };
 
-  // 404: dream not found
+  const handleAddTag = () => {
+    const tag = newTag.trim();
+    if (!dreamId || !tag) return;
+    addTag(dreamId, tag);
+    setNewTag("");
+    setShowTagInput(false);
+  };
+
+  // ---- Export to Markdown ----
+  const handleExport = () => {
+    if (!dream) return;
+    const lines: string[] = [];
+    lines.push(`# ${dream.emoji} ${dream.title || "未命名梦境"}`);
+    lines.push("");
+    lines.push(`> 创建于 ${dream.createdAt} · 状态: ${dream.status === "draft" ? "草稿" : "已完成"}`);
+    if ((dream.tags ?? []).length > 0) {
+      lines.push(`> 标签: ${(dream.tags ?? []).join(", ")}`);
+    }
+    lines.push("");
+    lines.push("## 梦境叙述");
+    lines.push("");
+    lines.push(dream.description || "（暂无内容）");
+    lines.push("");
+    if (dream.scenes.length > 0) {
+      lines.push("## 场景时间线");
+      lines.push("");
+      dream.scenes.forEach((scene, i) => {
+        lines.push(`${i + 1}. **${scene.title}**${scene.description ? ` — ${scene.description}` : ""}`);
+      });
+      lines.push("");
+    }
+    lines.push("---");
+    lines.push("*导出自 冬梦 DongMeng*");
+
+    const content = lines.join("\n");
+    const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${dream.title || "dream"}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setExportMsg("已导出 Markdown");
+    setTimeout(() => setExportMsg(""), 2000);
+  };
+
+  // 404
   if (!dream) {
     return (
       <PageTransition>
@@ -135,7 +188,7 @@ export function DreamEditorPage() {
   return (
     <PageTransition>
       <div className="space-y-6 max-w-4xl mx-auto">
-        {/* Top bar: back + delete */}
+        {/* Top bar */}
         <div className="flex items-center justify-between">
           <button
             onClick={() => navigate("/")}
@@ -149,14 +202,24 @@ export function DreamEditorPage() {
           </button>
 
           <div className="flex items-center gap-2">
-            {/* Save indicator */}
             {(titleSaved || descSaved) && (
               <span className="text-xs text-aurora-green flex items-center gap-1">
                 <Save size={12} /> 已保存
               </span>
             )}
-
-            {/* Delete button */}
+            {exportMsg && (
+              <span className="text-xs text-aurora-cyan flex items-center gap-1">
+                <Download size={12} /> {exportMsg}
+              </span>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 cursor-pointer"
+              onClick={handleExport}
+            >
+              <Download size={14} /> 导出
+            </Button>
             <Button
               variant={confirmDelete ? "destructive" : "outline"}
               size="sm"
@@ -181,7 +244,7 @@ export function DreamEditorPage() {
               onChange={(e) => setTitle(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Badge
               variant="outline"
               className="text-aurora-cyan border-aurora-cyan/30 cursor-pointer"
@@ -199,6 +262,60 @@ export function DreamEditorPage() {
                 ` · 更新于 ${dream.updatedAt}`}
             </span>
           </div>
+        </div>
+
+        {/* Tags section */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Tag size={14} className="text-muted-foreground" />
+          {(dream.tags ?? []).map((tag) => (
+            <Badge
+              key={tag}
+              variant="secondary"
+              className="gap-1 text-xs cursor-pointer group/tag"
+            >
+              {tag}
+              <button
+                onClick={() => removeTag(dreamId!, tag)}
+                className="opacity-0 group-hover/tag:opacity-100 transition-opacity cursor-pointer"
+              >
+                <X size={10} />
+              </button>
+            </Badge>
+          ))}
+          {showTagInput ? (
+            <div className="flex items-center gap-1">
+              <Input
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                placeholder="输入标签..."
+                className="h-6 w-24 text-xs p-1"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleAddTag();
+                  if (e.key === "Escape") {
+                    setShowTagInput(false);
+                    setNewTag("");
+                  }
+                }}
+              />
+              <button onClick={handleAddTag} className="text-aurora-green cursor-pointer">
+                <Check size={12} />
+              </button>
+              <button
+                onClick={() => { setShowTagInput(false); setNewTag(""); }}
+                className="text-muted-foreground cursor-pointer"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowTagInput(true)}
+              className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            >
+              <Plus size={12} /> 添加标签
+            </button>
+          )}
         </div>
 
         <Separator className="opacity-30" />
@@ -249,7 +366,6 @@ export function DreamEditorPage() {
                 key={scene.id}
                 className="glass min-w-[220px] shrink-0 hover:glow-purple transition-shadow duration-300 group relative"
               >
-                {/* Delete scene button */}
                 <button
                   onClick={() => handleDeleteScene(scene.id)}
                   className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity
@@ -267,7 +383,6 @@ export function DreamEditorPage() {
                     </div>
                   </div>
 
-                  {/* Editable scene title */}
                   {editingSceneId === scene.id ? (
                     <div className="flex items-center gap-1">
                       <Input

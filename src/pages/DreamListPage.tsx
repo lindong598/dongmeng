@@ -7,6 +7,7 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { Sparkles, CloudMoon } from "lucide-react";
@@ -91,7 +92,7 @@ export function DreamListPage() {
                   <p className="font-serif text-sm text-muted-foreground line-clamp-2 leading-relaxed">
                     {dream.description || "还没有内容..."}
                   </p>
-                  <div className="mt-3 flex items-center gap-2">
+                  <div className="mt-3 flex items-center gap-2 flex-wrap">
                     <span className="text-xs text-aurora-purple font-medium">
                       {dream.scenes.length} 个场景
                     </span>
@@ -99,6 +100,20 @@ export function DreamListPage() {
                     <span className="text-xs text-aurora-green">
                       {dream.status === "draft" ? "草稿" : "已完成"}
                     </span>
+                    {(dream.tags ?? []).length > 0 && (
+                      <>
+                        <span className="text-xs text-muted-foreground">·</span>
+                        {(dream.tags ?? []).slice(0, 3).map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant="outline"
+                            className="text-[10px] px-1.5 py-0"
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>
