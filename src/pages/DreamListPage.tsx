@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useDreamStore } from "@/stores/dream-store";
 import {
   Card,
   CardHeader,
@@ -6,95 +7,104 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { PageTransition } from "@/components/layout/PageTransition";
-
-const mockDreams = [
-  {
-    id: "1",
-    title: "星空下的海洋",
-    date: "2026-03-15",
-    emoji: "🌊",
-    description: "我站在一片无边的海洋前，头顶是旋转的星空，海水散发着微弱的荧光...",
-    scenes: 3,
-  },
-  {
-    id: "2",
-    title: "飞翔的鲸鱼",
-    date: "2026-03-14",
-    emoji: "🐋",
-    description: "巨大的蓝鲸从云层中穿出，身后拖着一道彩虹做成的尾迹...",
-    scenes: 5,
-  },
-  {
-    id: "3",
-    title: "水晶森林",
-    date: "2026-03-12",
-    emoji: "🌲",
-    description: "每棵树都由透明的水晶构成，阳光穿过时折射出万道彩虹...",
-    scenes: 2,
-  },
-  {
-    id: "4",
-    title: "时间的迷宫",
-    date: "2026-03-10",
-    emoji: "🕰️",
-    description: "走在不断变化的走廊中，每面墙上的时钟显示着不同的时间...",
-    scenes: 4,
-  },
-];
+import { Sparkles, CloudMoon } from "lucide-react";
 
 export function DreamListPage() {
   const navigate = useNavigate();
+  const dreams = useDreamStore((s) => s.dreams);
+  const addDream = useDreamStore((s) => s.addDream);
+
+  const handleNewDream = () => {
+    const id = addDream();
+    navigate(`/dream/${id}`);
+  };
 
   return (
     <PageTransition>
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="font-display text-3xl text-aurora-cyan tracking-wide">
-            梦境档案
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1 font-serif">
-            记录并重构你的梦境世界
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="font-display text-3xl text-aurora-cyan tracking-wide">
+              梦境档案
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1 font-serif">
+              记录并重构你的梦境世界
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            className="gap-2 font-serif cursor-pointer"
+            onClick={handleNewDream}
+          >
+            <Sparkles size={14} />
+            记录新梦境
+          </Button>
         </div>
 
-        {/* Dream grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {mockDreams.map((dream) => (
-            <Card
-              key={dream.id}
-              className="glass cursor-pointer hover:scale-[1.02] transition-transform duration-200 hover:glow-cyan"
-              onClick={() => navigate(`/dream/${dream.id}`)}
+        {/* Empty state */}
+        {dreams.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+            <CloudMoon size={64} className="text-aurora-purple/40 animate-float" />
+            <h2 className="font-display text-xl text-muted-foreground">
+              还没有梦境记录
+            </h2>
+            <p className="text-sm text-muted-foreground/70 font-serif max-w-sm">
+              点击「记录新梦境」开始捕捉你的第一个梦境吧
+            </p>
+            <Button
+              variant="outline"
+              className="gap-2 font-serif cursor-pointer mt-2"
+              onClick={handleNewDream}
             >
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl">{dream.emoji}</span>
-                  <div>
-                    <CardTitle className="font-display text-lg tracking-wide">
-                      {dream.title}
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      {dream.date}
-                    </CardDescription>
+              <Sparkles size={14} />
+              开始记录
+            </Button>
+          </div>
+        )}
+
+        {/* Dream grid */}
+        {dreams.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {dreams.map((dream) => (
+              <Card
+                key={dream.id}
+                className="glass cursor-pointer hover:scale-[1.02] transition-transform duration-200 hover:glow-cyan"
+                onClick={() => navigate(`/dream/${dream.id}`)}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">{dream.emoji}</span>
+                    <div>
+                      <CardTitle className="font-display text-lg tracking-wide">
+                        {dream.title || "未命名梦境"}
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        {dream.createdAt}
+                      </CardDescription>
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="font-serif text-sm text-muted-foreground line-clamp-2 leading-relaxed">
-                  {dream.description}
-                </p>
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="text-xs text-aurora-purple font-medium">
-                    {dream.scenes} 个场景
-                  </span>
-                  <span className="text-xs text-muted-foreground">·</span>
-                  <span className="text-xs text-aurora-green">草稿</span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="font-serif text-sm text-muted-foreground line-clamp-2 leading-relaxed">
+                    {dream.description || "还没有内容..."}
+                  </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="text-xs text-aurora-purple font-medium">
+                      {dream.scenes.length} 个场景
+                    </span>
+                    <span className="text-xs text-muted-foreground">·</span>
+                    <span className="text-xs text-aurora-green">
+                      {dream.status === "draft" ? "草稿" : "已完成"}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </PageTransition>
   );

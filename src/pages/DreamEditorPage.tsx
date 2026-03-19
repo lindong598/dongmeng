@@ -1,4 +1,6 @@
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useDreamStore } from "@/stores/dream-store";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -6,91 +8,195 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { PageTransition } from "@/components/layout/PageTransition";
-import { ArrowLeft, Wand2, ImagePlus, Sparkles } from "lucide-react";
+import {
+  ArrowLeft,
+  Wand2,
+  ImagePlus,
+  Sparkles,
+  Trash2,
+  X,
+  Check,
+  Pencil,
+  Save,
+  CloudMoon,
+} from "lucide-react";
 
-// Mock dream data keyed by id
-const mockDreamData: Record<
-  string,
-  { title: string; emoji: string; description: string; scenes: string[] }
-> = {
-  "1": {
-    title: "星空下的海洋",
-    emoji: "🌊",
-    description:
-      "我站在一片无边的海洋前，头顶是旋转的星空。海水呈现出深邃的靛蓝色，波浪轻轻拍打着我的脚踝。远处，一座水晶灯塔发出柔和的光芒，指引着某个未知的方向。海面上漂浮着无数发光的水母，像是坠落的星辰。",
-    scenes: ["海边黄昏", "水晶灯塔", "深海漩涡"],
-  },
-  "2": {
-    title: "飞翔的鲸鱼",
-    emoji: "🐋",
-    description:
-      "巨大的蓝鲸从云层中穿出，身后拖着一道彩虹做成的尾迹。我骑在鲸鱼的背上，穿越一座座浮空的岛屿。",
-    scenes: ["云海鲸鱼", "浮空岛屿", "彩虹瀑布", "星空降落", "梦醒时分"],
-  },
-  "3": {
-    title: "水晶森林",
-    emoji: "🌲",
-    description:
-      "每棵树都由透明的水晶构成，阳光穿过时折射出万道彩虹。森林深处有一条银色的小溪，流淌着液态的月光。",
-    scenes: ["水晶入口", "月光溪流"],
-  },
-  "4": {
-    title: "时间的迷宫",
-    emoji: "🕰️",
-    description:
-      "走在不断变化的走廊中，每面墙上的时钟显示着不同的时间。有的指针倒转，有的飞速旋转。在迷宫的中心，我找到了一扇没有钥匙的门。",
-    scenes: ["入口大厅", "钟表走廊", "镜像房间", "无钥之门"],
-  },
-  "5": {
-    title: "月光下的花园",
-    emoji: "🌙",
-    description:
-      "月光如水般倾泻在花园中，每朵花都在轻轻哼唱着不同的旋律。蝴蝶的翅膀上写满了古老的文字。",
-    scenes: ["月光花径", "歌唱花朵", "文字蝴蝶"],
-  },
-};
+// Debounced auto-save hook
+function useAutoSave(dreamId: string | undefined, field: string, value: string, delay = 600) {
+  const updateDream = useDreamStore((s) => s.updateDream);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!dreamId) return;
+    clearTimeout(timer.current);
+    setSaved(false);
+    timer.current = setTimeout(() => {
+      updateDream(dreamId, { [field]: value });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    }, delay);
+    return () => clearTimeout(timer.current);
+  }, [value, dreamId, field, delay, updateDream]);
+
+  return saved;
+}
 
 export function DreamEditorPage() {
   const { dreamId } = useParams();
   const navigate = useNavigate();
+  const dream = useDreamStore((s) => s.dreams.find((d) => d.id === dreamId));
+  const updateDream = useDreamStore((s) => s.updateDream);
+  const deleteDream = useDreamStore((s) => s.deleteDream);
+  const addScene = useDreamStore((s) => s.addScene);
+  const updateScene = useDreamStore((s) => s.updateScene);
+  const deleteScene = useDreamStore((s) => s.deleteScene);
 
-  const dream = dreamId ? mockDreamData[dreamId] : null;
-  const title = dream?.title ?? "未知梦境";
-  const description = dream?.description ?? "";
-  const scenes = dream?.scenes ?? [];
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [editingSceneId, setEditingSceneId] = useState<string | null>(null);
+  const [editingSceneTitle, setEditingSceneTitle] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Sync local state when dream changes (e.g. on first load)
+  useEffect(() => {
+    if (dream) {
+      setTitle(dream.title);
+      setDescription(dream.description);
+    }
+  }, [dream?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const titleSaved = useAutoSave(dreamId, "title", title);
+  const descSaved = useAutoSave(dreamId, "description", description);
+
+  const handleDelete = useCallback(() => {
+    if (!dreamId) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    deleteDream(dreamId);
+    navigate("/");
+  }, [dreamId, confirmDelete, deleteDream, navigate]);
+
+  // Cancel delete confirmation after 3 seconds
+  useEffect(() => {
+    if (!confirmDelete) return;
+    const t = setTimeout(() => setConfirmDelete(false), 3000);
+    return () => clearTimeout(t);
+  }, [confirmDelete]);
+
+  const handleAddScene = () => {
+    if (!dreamId) return;
+    addScene(dreamId);
+  };
+
+  const startEditScene = (sceneId: string, currentTitle: string) => {
+    setEditingSceneId(sceneId);
+    setEditingSceneTitle(currentTitle);
+  };
+
+  const saveSceneEdit = () => {
+    if (!dreamId || !editingSceneId) return;
+    updateScene(dreamId, editingSceneId, { title: editingSceneTitle });
+    setEditingSceneId(null);
+  };
+
+  const handleDeleteScene = (sceneId: string) => {
+    if (!dreamId) return;
+    deleteScene(dreamId, sceneId);
+  };
+
+  // 404: dream not found
+  if (!dream) {
+    return (
+      <PageTransition>
+        <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+          <CloudMoon size={64} className="text-aurora-purple/40 animate-float" />
+          <h2 className="font-display text-xl text-muted-foreground">
+            梦境不存在
+          </h2>
+          <p className="text-sm text-muted-foreground/70 font-serif">
+            这个梦境可能已被删除，或从未存在过
+          </p>
+          <Button
+            variant="outline"
+            className="gap-2 font-serif cursor-pointer mt-2"
+            onClick={() => navigate("/")}
+          >
+            <ArrowLeft size={14} />
+            返回梦境列表
+          </Button>
+        </div>
+      </PageTransition>
+    );
+  }
 
   return (
     <PageTransition>
       <div className="space-y-6 max-w-4xl mx-auto">
-        {/* Back button */}
-        <button
-          onClick={() => navigate("/")}
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer group"
-        >
-          <ArrowLeft
-            size={14}
-            className="group-hover:-translate-x-0.5 transition-transform"
-          />
-          返回梦境列表
-        </button>
+        {/* Top bar: back + delete */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => navigate("/")}
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer group"
+          >
+            <ArrowLeft
+              size={14}
+              className="group-hover:-translate-x-0.5 transition-transform"
+            />
+            返回梦境列表
+          </button>
+
+          <div className="flex items-center gap-2">
+            {/* Save indicator */}
+            {(titleSaved || descSaved) && (
+              <span className="text-xs text-aurora-green flex items-center gap-1">
+                <Save size={12} /> 已保存
+              </span>
+            )}
+
+            {/* Delete button */}
+            <Button
+              variant={confirmDelete ? "destructive" : "outline"}
+              size="sm"
+              className="gap-1 cursor-pointer"
+              onClick={handleDelete}
+            >
+              <Trash2 size={14} />
+              {confirmDelete ? "确认删除？" : "删除"}
+            </Button>
+          </div>
+        </div>
 
         {/* Dream header */}
         <div className="space-y-3">
           <div className="flex items-center gap-3">
-            <span className="text-3xl">{dream?.emoji ?? "💭"}</span>
+            <span className="text-3xl">{dream.emoji}</span>
             <Input
               className="font-display text-2xl bg-transparent border-none p-0 h-auto
                          focus-visible:ring-0 placeholder:text-muted-foreground/50"
               placeholder="输入梦境标题..."
-              defaultValue={title}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
             />
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-aurora-cyan border-aurora-cyan/30">
-              草稿
+            <Badge
+              variant="outline"
+              className="text-aurora-cyan border-aurora-cyan/30 cursor-pointer"
+              onClick={() =>
+                updateDream(dreamId!, {
+                  status: dream.status === "draft" ? "completed" : "draft",
+                })
+              }
+            >
+              {dream.status === "draft" ? "草稿" : "已完成"}
             </Badge>
             <span className="text-xs text-muted-foreground">
-              梦境 #{dreamId} · 创建于 2026-03-15
+              创建于 {dream.createdAt}
+              {dream.updatedAt !== dream.createdAt &&
+                ` · 更新于 ${dream.updatedAt}`}
             </span>
           </div>
         </div>
@@ -107,7 +213,8 @@ export function DreamEditorPage() {
             className="min-h-[200px] font-serif text-base leading-relaxed glass
                        resize-none focus-visible:ring-aurora-cyan/50 p-4"
             placeholder="闭上眼睛，回忆你的梦境..."
-            defaultValue={description}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
           />
         </div>
 
@@ -124,14 +231,34 @@ export function DreamEditorPage() {
               variant="outline"
               size="sm"
               className="gap-1 cursor-pointer"
+              onClick={handleAddScene}
             >
               <ImagePlus size={14} /> 添加场景
             </Button>
           </div>
 
+          {dream.scenes.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground/60 font-serif text-sm">
+              还没有场景，点击「添加场景」开始构建你的梦境画面
+            </div>
+          )}
+
           <div className="flex gap-4 overflow-x-auto pb-3">
-            {scenes.map((scene, i) => (
-              <Card key={i} className="glass min-w-[220px] shrink-0 hover:glow-purple transition-shadow duration-300">
+            {dream.scenes.map((scene, i) => (
+              <Card
+                key={scene.id}
+                className="glass min-w-[220px] shrink-0 hover:glow-purple transition-shadow duration-300 group relative"
+              >
+                {/* Delete scene button */}
+                <button
+                  onClick={() => handleDeleteScene(scene.id)}
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity
+                             p-1 rounded-md hover:bg-destructive/20 text-muted-foreground hover:text-destructive cursor-pointer"
+                  title="删除场景"
+                >
+                  <X size={14} />
+                </button>
+
                 <CardContent className="p-4">
                   <div className="h-32 rounded-lg bg-gradient-to-br from-aurora-blue/20 to-aurora-purple/20 flex items-center justify-center text-muted-foreground text-xs mb-3 border border-border/30">
                     <div className="text-center space-y-1">
@@ -139,7 +266,40 @@ export function DreamEditorPage() {
                       <span className="opacity-60">等待生成</span>
                     </div>
                   </div>
-                  <p className="font-serif text-sm">{scene}</p>
+
+                  {/* Editable scene title */}
+                  {editingSceneId === scene.id ? (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={editingSceneTitle}
+                        onChange={(e) => setEditingSceneTitle(e.target.value)}
+                        className="h-7 text-sm p-1"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveSceneEdit();
+                          if (e.key === "Escape") setEditingSceneId(null);
+                        }}
+                      />
+                      <button
+                        onClick={saveSceneEdit}
+                        className="text-aurora-green hover:text-aurora-cyan cursor-pointer"
+                      >
+                        <Check size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => startEditScene(scene.id, scene.title)}
+                      className="font-serif text-sm flex items-center gap-1 group/edit cursor-pointer text-left"
+                    >
+                      {scene.title}
+                      <Pencil
+                        size={12}
+                        className="opacity-0 group-hover/edit:opacity-60 transition-opacity"
+                      />
+                    </button>
+                  )}
+
                   <p className="text-xs text-muted-foreground mt-1">
                     场景 {i + 1}
                   </p>
