@@ -1,10 +1,17 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { RouterProvider } from "react-router-dom";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { router } from "./router";
+import "./index.css";
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+// Set dark theme by default
+document.documentElement.classList.add("dark");
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <TooltipProvider>
+      <RouterProvider router={router} />
+    </TooltipProvider>
+  </React.StrictMode>
+);
